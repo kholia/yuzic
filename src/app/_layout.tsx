@@ -20,6 +20,7 @@ import { useScreenBackground } from '@/features/theme/screenBackgroundContext';
 import { DlnaProvider } from '@/features/player/DlnaContext';
 import { PlaybackSinkProvider } from '@/features/player/PlaybackSinkContext';
 import { SongActionSheetProvider } from '@/features/entity-actions/SongActionSheetContext';
+import { ExternalResolutionProvider } from '@/features/sources/ExternalResolutionProvider';
 import { DownloadProvider } from '@/features/offline/DownloadContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider, useSelector } from 'react-redux';
@@ -293,6 +294,7 @@ function AppShell() {
               <NavigationTheme isDarkMode={isDarkMode}>
               <ErrorBoundary>
               <BottomSheetModalProvider>
+                <ExternalResolutionProvider>
                 <SongActionSheetProvider>
                 <PlayerExpansionProvider>
                 <Stack>
@@ -320,6 +322,7 @@ function AppShell() {
                 <ToastHost />
                 </PlayerExpansionProvider>
                 </SongActionSheetProvider>
+                </ExternalResolutionProvider>
               </BottomSheetModalProvider>
               </ErrorBoundary>
               </NavigationTheme>

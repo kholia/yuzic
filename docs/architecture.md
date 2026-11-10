@@ -272,6 +272,12 @@ of a complete player. `createEngineBackend` (yuzic-engine) implements it,
 `activeBackend.ts` hands it out, and `PlayingContext` never imports a player
 directly.
 
+`ExternalResolutionProvider` lives in the root shell, below
+`BottomSheetModalProvider` and above `SongActionSheetProvider`, the navigator,
+and `PlayerHost`. Its album/artist navigation is used by the global player and
+song-option sheets as well as browsing screens. A provider inside `(home)`
+cannot serve those root siblings; keep one shared root resolver and its pickers.
+
 `patches/yuzic-engine+1.2.5.patch` carries the Android ALAC fix until it is
 available in an engine release: FFmpeg 9.0.2's native ALAC decoder is appended
 after Media3's platform renderer and shares each voice's PCM16 sink and DSP.

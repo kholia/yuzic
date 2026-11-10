@@ -121,8 +121,9 @@ export function ExternalResolutionProvider({ children }: { children: React.React
   }, [artists, enabledSources, router]);
 
   /*
-   * This provider wraps every tab and reads the whole catalog, so without the
-   * memo its value changed identity on each sync and each picker open — and
+   * This provider wraps the navigator, global player and action sheets, and
+   * reads the whole catalog, so without the memo its value changed identity
+   * on each sync and each picker open — and
    * its consumers are six Home shelves plus the Search model. That is the
    * re-render-all-of-Home shape `useStableList` was written to kill,
    * reintroduced one layer above it.
