@@ -1,0 +1,73 @@
+name: ALAC test APK
+
+on:
+  push:
+    branches: [codex/alac-ffmpeg-9.0.2-apk]
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_OFFLINE: '1'
+      CMAKE_BUILD_PARALLEL_LEVEL: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install native build tools
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Install app and apply modified engine
+        run: |
+          npm ci --omit=dev
+          bash tools/verify-patches.sh
+          test -f node_modules/yuzic-engine/android/src/main/cpp/AlacDecoder.cpp
+          grep -q ffmpeg-9.0.2 node_modules/yuzic-engine/android/src/main/cpp/CMakeLists.txt
+      - name: Build installable test APK
+        run: |
+          export VERSION_LABEL="$(node -p 'require("./package.json").version')"
+          cat > /tmp/alac-test.init.gradle <<'GRADLE'
+          gradle.beforeProject { p ->
+            if (p.path == ':app') {
+              p.afterEvaluate {
+                p.android.defaultConfig.applicationId = 'com.arinora.rawarr.alactest'
+              }
+            }
+          }
+          GRADLE
+          cd android
+          ./gradlew --no-daemon --console=plain --max-workers=2 \
+            -I /tmp/alac-test.init.gradle -PreactNativeArchitectures=arm64-v8a \
+            :yuzic-engine:testReleaseUnitTest :app:assembleRelease
+      - name: Verify native decoder, notices and bundled app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          apk = Path('android/app/build/outputs/apk/release/app-release.apk')
+          with zipfile.ZipFile(apk) as archive:
+              names = set(archive.namelist())
+              for required in ['lib/arm64-v8a/libyuzic_alac.so', 'assets/index.android.bundle',
+                               'assets/yuzic-alac/NOTICE', 'assets/yuzic-alac/COPYING.LGPLv2.1']:
+                  assert required in names, required
+              assert b'ffmpeg-9.0.2' in archive.read('assets/yuzic-alac/NOTICE')
+          PY
+          cp android/app/build/outputs/apk/release/app-release.apk yuzic-alac-ffmpeg-9.0.2-arm64.apk
+          sha256sum yuzic-alac-ffmpeg-9.0.2-arm64.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yuzic-alac-ffmpeg-9.0.2-arm64
+          path: yuzic-alac-ffmpeg-9.0.2-arm64.apk
+          if-no-files-found: error
+          retention-days: 14

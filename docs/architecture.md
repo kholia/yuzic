@@ -272,6 +272,14 @@ of a complete player. `createEngineBackend` (yuzic-engine) implements it,
 `activeBackend.ts` hands it out, and `PlayingContext` never imports a player
 directly.
 
+`patches/yuzic-engine+1.2.5.patch` carries the Android ALAC fix until it is
+available in an engine release: FFmpeg 9.0.2's native ALAC decoder is appended
+after Media3's platform renderer and shares each voice's PCM16 sink and DSP.
+It builds from checksummed source, with only ALAC enabled. The patch also
+packages FFmpeg notices and source/rebuild instructions; keep those with the
+native library. Gonic can label an unchanged ALAC M4A `audio/mp4a-latm`;
+Media3's extractors identify the MP4 bytes before choosing the ALAC renderer.
+
 The seam was built while `@rntp/player` was still here, so both could run on
 one device and be compared. That is what turned the removal from a rewrite of
 ~40 call sites into a swap of one factory function, and it is worth keeping
