@@ -28,6 +28,8 @@ jobs:
         with:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Install native build tools
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
       - name: Install app and apply modified engine
@@ -49,7 +51,10 @@ jobs:
           }
           GRADLE
           cd android
-          ./gradlew --no-daemon --console=plain --max-workers=2 \
+          ./gradlew --no-daemon --no-configure-on-demand --console=plain --max-workers=2 \
+            -I /tmp/alac-test.init.gradle -PreactNativeArchitectures=arm64-v8a \
+            generateCodegenArtifactsFromSchema
+          ./gradlew --no-daemon --no-configure-on-demand --console=plain --max-workers=2 \
             -I /tmp/alac-test.init.gradle -PreactNativeArchitectures=arm64-v8a \
             :yuzic-engine:testReleaseUnitTest :app:assembleRelease
       - name: Verify native decoder, notices and bundled app
