@@ -43,13 +43,19 @@ diff --git a/node_modules/yuzic-engine/android/README.md b/node_modules/yuzic-en
 new file mode 100644
 --- /dev/null
 +++ b/node_modules/yuzic-engine/android/README.md
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,86 @@
 +# Android ALAC decoding
 +
 +Media3 extracts ALAC packets from MP4/M4A, but Android does not require an ALAC
-+MediaCodec decoder. `AlacAudioRenderer` adds a native software fallback after the
-+platform renderer. Both voices use their existing audio sink, so EQ, replay
++MediaCodec decoder. `AlacAudioRenderer` is registered before the platform audio
++renderer and handles ALAC only. A device advertising ALAC support can still
++fail inside `MediaCodecAudioRenderer`; a renderer registered as a fallback
++never gets selected in that case. Both voices use their existing sink, so EQ, replay
 +gain, crossfade, HTTP authentication, ranged requests and caching still apply.
++
++Successful initialization logs `YuzicAlac: Using native FFmpeg ALAC decoder`
++with sample rate and channel count. A native library load failure is logged
++to stderr/logcat instead of silently dropping the software decoder.
 +
 +`src/main/cpp` builds FFmpeg **9.0.2**, enabling only the ALAC decoder, libavcodec
 +and libavutil. No FFmpeg network transport, demuxer, encoder, CLI, GPL or nonfree
@@ -1262,10 +1268,11 @@ diff --git a/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/Al
 new file mode 100644
 --- /dev/null
 +++ b/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/AlacAudioRenderer.java
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,107 @@
 +package dev.yuzic.engine;
 +
 +import android.os.Handler;
++import android.util.Log;
 +import androidx.media3.common.C;
 +import androidx.media3.common.Format;
 +import androidx.media3.common.MimeTypes;
@@ -1280,7 +1287,7 @@ new file mode 100644
 +import androidx.media3.exoplayer.audio.DecoderAudioRenderer;
 +import java.nio.ByteBuffer;
 +
-+/** Software fallback for ALAC in MP4, sharing each voice's ordinary PCM sink and processors. */
++/** Preferred ALAC decoder for MP4, sharing each voice's ordinary PCM sink and processors. */
 +@UnstableApi
 +public final class AlacAudioRenderer extends DecoderAudioRenderer<AlacAudioRenderer.Decoder> {
 +  public AlacAudioRenderer(Handler handler, AudioRendererEventListener listener, AudioSink sink) {
@@ -1303,7 +1310,10 @@ new file mode 100644
 +
 +  @Override protected Decoder createDecoder(Format format, CryptoConfig cryptoConfig) throws Failure {
 +    try {
-+      return new Decoder(new NativeAlacDecoder(config(format)), format.maxInputSize);
++      Decoder decoder = new Decoder(new NativeAlacDecoder(config(format)), format.maxInputSize);
++      Log.i("YuzicAlac", "Using native FFmpeg ALAC decoder: "
++          + decoder.packets.config.sampleRate + " Hz, " + decoder.packets.config.channels + " channels");
++      return decoder;
 +    } catch (IllegalArgumentException error) {
 +      throw new Failure(error);
 +    }
@@ -1387,7 +1397,7 @@ diff --git a/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/Au
  import androidx.media3.exoplayer.audio.AudioSink
  import androidx.media3.exoplayer.audio.DefaultAudioSink
  import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-@@ -97,6 +101,23 @@
+@@ -97,6 +101,24 @@
      val fade = FadeAudioProcessor()
  
      val renderersFactory = object : DefaultRenderersFactory(context) {
@@ -1401,11 +1411,12 @@ diff --git a/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/Au
 +        eventListener: AudioRendererEventListener,
 +        out: ArrayList<Renderer>,
 +      ) {
++        // Some devices advertise ALAC support and then fail in MediaCodec.
++        // Prefer our decoder for ALAC; it declines every other audio format.
++        // Both renderers share this voice's sink, including its EQ and fade.
++        out.add(AlacAudioRenderer(eventHandler, eventListener, audioSink))
 +        super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector,
 +          enableDecoderFallback, audioSink, eventHandler, eventListener, out)
-+        // Retain platform decoders first. ALAC is not a required Android codec;
-+        // this fallback uses the same sink, including this voice's EQ and fade.
-+        out.add(AlacAudioRenderer(eventHandler, eventListener, audioSink))
 +      }
 +
        override fun buildAudioSink(
@@ -1415,7 +1426,7 @@ diff --git a/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/Na
 new file mode 100644
 --- /dev/null
 +++ b/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/NativeAlacDecoder.java
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,70 @@
 +package dev.yuzic.engine;
 +
 +import java.nio.ByteBuffer;
@@ -1427,7 +1438,11 @@ new file mode 100644
 +  static {
 +    boolean loaded;
 +    try { System.loadLibrary("yuzic_alac"); loaded = true; }
-+    catch (UnsatisfiedLinkError error) { loaded = false; }
++    catch (UnsatisfiedLinkError error) {
++      loaded = false;
++      // System.err also reaches logcat, and remains usable in plain JVM tests.
++      System.err.println("YuzicAlac: native library could not be loaded: " + error);
++    }
 +    AVAILABLE = loaded;
 +  }
 +

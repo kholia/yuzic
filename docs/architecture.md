@@ -279,8 +279,10 @@ song-option sheets as well as browsing screens. A provider inside `(home)`
 cannot serve those root siblings; keep one shared root resolver and its pickers.
 
 `patches/yuzic-engine+1.2.5.patch` carries the Android ALAC fix until it is
-available in an engine release: FFmpeg 9.0.2's native ALAC decoder is appended
-after Media3's platform renderer and shares each voice's PCM16 sink and DSP.
+available in an engine release: FFmpeg 9.0.2's native ALAC decoder is preferred
+ahead of Media3's platform renderer and shares each voice's PCM16 sink and DSP.
+It handles ALAC only; other formats keep the platform path. This order also
+covers devices that advertise ALAC support but fail inside the platform renderer.
 It builds from checksummed source, with only ALAC enabled. The patch also
 packages FFmpeg notices and source/rebuild instructions; keep those with the
 native library. Gonic can label an unchanged ALAC M4A `audio/mp4a-latm`;
